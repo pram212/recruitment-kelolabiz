@@ -18,6 +18,6 @@ export default {
     },
     plugins: [require('daisyui')],
     daisyui: {
-        themes: ["corporate"],
+        themes: ["corporate", "dark"],
     },
 };
