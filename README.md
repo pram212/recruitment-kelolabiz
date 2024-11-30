@@ -13,5 +13,6 @@
 - php artisan optimize:clear
 - npm install
 - npm run build
+- php artisan storage:link
 - php artisan serve
 - setelah itu, buka alamat http://loclahost:8000 di browser
