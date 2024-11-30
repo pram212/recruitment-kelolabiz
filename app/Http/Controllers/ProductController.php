@@ -2,11 +2,15 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Requests\StoreProductRequest;
+use App\Http\Requests\UpdateProductRequest;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Http;
 use Inertia\Inertia;
 use Illuminate\Support\Str;
+use Illuminate\Support\Arr;
+use Illuminate\Support\Facades\Redirect;
 
 class ProductController extends Controller
 {
@@ -21,9 +25,9 @@ class ProductController extends Controller
 
         if (request('search')) {
             $products = $products->filter(function ($item) {
-                return Str::contains($item['title'], request('search')) 
-                        || Str::contains($item['category'], request('search')) 
-                        || Str::contains($item['brand'], request('search'));
+                return Str::contains($item['title'], request('search'))
+                    || Str::contains($item['category'], request('search'))
+                    || Str::contains($item['brand'], request('search'));
             });
         }
 
@@ -41,32 +45,36 @@ class ProductController extends Controller
     /**
      * Store a newly created resource in storage.
      */
-    public function store(Request $request)
+    public function store(StoreProductRequest $request)
     {
-        $request->validate([
-            'title' => ['required', 'string'],
-            'category' => ['required', 'string'],
-            'price' => ['required', 'numeric'],
-            'discountPresentage' => ['numeric'],
-            'rating' => ['numeric'],
-            'stock' => ['numeric'],
-            'brand' => ['required', 'string'],
-            'sku' => ['required', 'string'],
-            'warrantyInformation' => ['required', 'string'],
-            'shippingInformation' => ['required', 'string'],
-            'availabilityStatus' => ['required', 'string'],
-            'returnPolicy' => ['required', 'string'],
-            'minimumOrderQuantity' => ['required', 'numeric']
+
+        if ($request->file('thumbnail_input')) {
+            $path = $request->file('thumbnail_input')->storeAs(
+                'thumbnails', // folder name
+                $request->file('thumbnail_input')->hashName(), // file name with hash
+                'public' // disk
+            );
+
+            $request->merge([
+                'thumbnail' => "/storage/" . $path,
+            ]);
+        }
+
+        $request->merge([
+            'images' => [],
+            'reviews' => [],
         ]);
 
         $response = Http::accept('application/json')
             ->post("https://api.sugity.kelola.biz/api/product", [
-                "products" => [$request->all()]
+                "products" => [$request->except("thumbnail_input")]
             ]);
 
-        if ($response->unprocessableEntity()) return "data tidak valid";
-
-        if ($response->ok()) return back()->with(['message' => "data berhasil ditambahkan"]);
+        if ($response->failed()) {
+            return back()->withErrors('message', 'Oops terjadi kesalahan');
+        } else {
+            return to_route('products.index');
+        }
     }
 
     /**
@@ -85,37 +93,46 @@ class ProductController extends Controller
         $response = Http::accept('application/json')->get('https://api.sugity.kelola.biz/api/product/' . $id);
 
         if ($response->ok()) {
-            return Inertia::render('Product/FormProduct', ['product' => $response['data']]);
+            $product = $response['data'];
+            $product["dimensions"] = is_string($product['dimensions']) ? json_decode($product['dimensions']) : $product['dimensions'];
+            $product["meta"] = is_string($product["meta"]) ? json_decode($product['meta']) : $product["meta"];
+            $product["images"] = is_string($product["images"]) ? json_decode($product['images']) : $product["images"];
+            // return $product;
+            return Inertia::render('Product/FormProduct', ['product' => $product]);
         }
     }
 
     /**
      * Update the specified resource in storage.
      */
-    public function update(Request $request, string $id)
+    public function update(UpdateProductRequest $request, string $id)
     {
-        $request->validate([
-            'title' => ['required', 'string'],
-            'category' => ['required', 'string'],
-            'price' => ['required', 'numeric'],
-            'discountPresentage' => ['numeric'],
-            'rating' => ['numeric'],
-            'stock' => ['numeric'],
-            'brand' => ['required', 'string'],
-            'sku' => ['required', 'string'],
-            'warrantyInformation' => ['required', 'string'],
-            'shippingInformation' => ['required', 'string'],
-            'availabilityStatus' => ['required', 'string'],
-            'minimumOrderQuantity' => ['required', 'numeric']
+
+        if ($request->file('thumbnail_input')) {
+            $path = $request->file('thumbnail_input')->storeAs(
+                'thumbnails', // folder name
+                $request->file('thumbnail_input')->hashName(), // file name with hash
+                'public' // disk
+            );
+
+            $request->merge(['thumbnail' => "/storage/" . $path]);
+        }
+
+        $request->merge([
+            'images' => [],
+            'reviews' => [],
         ]);
 
         $response = Http::accept('application/json')
-            ->post('https://api.sugity.kelola.biz/api/product/' . $id, $request->except('id', 'thumbnail_input'));
+            ->post(
+                'https://api.sugity.kelola.biz/api/product/' . $id,
+                $request->except('_id', 'thumbnail_input', '_method')
+            );
 
-        if ($response->unprocessableEntity()) return "data tidak valid";
-
-        if ($response->ok()) {
-            return redirect('/products');
+        if ($response->failed()) {
+            return back();
+        } else {
+            return to_route('products.index');
         }
     }
 

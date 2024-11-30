@@ -8,6 +8,26 @@ import Swal from "sweetalert2";
 export default function FormProduct({ product }) {
     const { errors } = usePage().props;
 
+    const safeJsonParse = (data) => {
+        // Cek apakah data sudah berupa objek JSON
+        if (typeof data === "object" && data !== null) {
+            return data; // Jika sudah JSON, kembalikan langsung
+        }
+
+        // Coba parsing jika data berupa string
+        if (typeof data === "string") {
+            try {
+                return JSON.parse(data); // Parsing berhasil
+            } catch (e) {
+                console.error("Data tidak valid untuk JSON.parse:", e);
+                return data; // Jika parsing gagal, kembalikan data asli
+            }
+        }
+
+        // Jika bukan string atau objek, kembalikan data apa adanya
+        return data;
+    };
+    
     const [formData, setFormData] = useState({
         title: product?.title,
         description: product?.description,
@@ -24,13 +44,25 @@ export default function FormProduct({ product }) {
         availabilityStatus: product?.availabilityStatus,
         returnPolicy: product?.returnPolicy,
         minimumOrderQuantity: product?.minimumOrderQuantity ?? "",
-        thumbnail: product?.thumbnail ?? "",
         tags: product?.tags ?? [],
-        dimensions: product?.dimensions ?? { width: 0, height: 0, depth: 0 },
-        meta: product?.meta ?? { createdAt: "", updatedAt: "", barcode: "", qrCode: "" },
-        images: product ? JSON.parse(product.images) : [],
+        dimensions: safeJsonParse(product?.dimensions) ?? {
+            width: 0,
+            height: 0,
+            depth: 0,
+        },
+        meta: safeJsonParse(product?.meta) ?? {
+            createdAt: "",
+            updatedAt: "",
+            barcode: "",
+            qrCode: "",
+        },
+        images: product ? product.images : [],
         reviews: product?.reviews ?? [],
+        thumbnail_input: "",
     });
+
+    const [isVisible, setIsVisible] = useState(false);
+    const [preview, setPreview] = useState(null);
 
     const handleChange = (e) => {
         const { name, value } = e.target;
@@ -51,6 +83,34 @@ export default function FormProduct({ product }) {
         }));
     };
 
+    // when the thumbnail input changed
+    const handleFileChange = (e) => {
+        const file = e.target.files[0];
+        const name = e.target.name;
+        if (file) {
+            setPreview(URL.createObjectURL(file));
+            setFormData((prev) => ({
+                ...prev,
+                [name]: file,
+            }));
+        }
+    };
+
+    const checkImageExists = (imageUrl, callback) => {
+        const img = new Image();
+        img.onload = () => callback(true); // image loaded Gambar
+        img.onerror = () => callback(false); // image failed to load
+        img.src = imageUrl;
+    };
+
+    // check thumbnail if edit mode
+    if (product) {
+        checkImageExists(product.thumbnail, (exists) => {
+            if (exists) setIsVisible(true);
+        });
+    }
+
+    // setup toaster template
     const Toast = Swal.mixin({
         toast: true,
         position: "top-end",
@@ -65,8 +125,11 @@ export default function FormProduct({ product }) {
 
     function handleSubmit(e) {
         e.preventDefault();
+        // update data
         if (product) {
-            router.put("/products/" + product._id, formData, {
+            formData._method = "put";
+            router.post("/products/" + product._id, formData, {
+                forceFormData: true,
                 onSuccess: (page) => {
                     Toast.fire({
                         icon: "success",
@@ -79,9 +142,12 @@ export default function FormProduct({ product }) {
                         icon: "error",
                     });
                 },
-            })
-        } else {
+            });
+        }
+        // add data
+        else {
             router.post("/products", formData, {
+                forceFormData: true,
                 onSuccess: (page) => {
                     Toast.fire({
                         icon: "success",
@@ -100,9 +166,11 @@ export default function FormProduct({ product }) {
 
     return (
         <>
-            <AppLayout headerContent={ product ? "Update Product" : "Add product"}>
-                <Head title={ product ? "Update Product" : "Add product"} />
-                <div className="border border-gray-100 rounded-md p-2">
+            <AppLayout
+                headerContent={product ? "Update Product" : "Add product"}
+            >
+                <Head title={product ? "Update Product" : "Add product"} />
+                <div className="border border-base-300 rounded-md p-5">
                     <form onSubmit={handleSubmit} className="space-y-4">
                         <div className="lg:grid lg:grid-cols-3 gap-x-2">
                             <FormGroup
@@ -297,20 +365,14 @@ export default function FormProduct({ product }) {
                                 </div>
                                 <div className="label">
                                     <span className="label-text-alt">
-                                        error
+                                        {errors.dimensions && (
+                                            <p className="label-text-alt text-red-500">
+                                                {errors.dimensions}
+                                            </p>
+                                        )}
                                     </span>
                                 </div>
                             </label>
-
-                            <FormGroup
-                                label="thumbnail"
-                                name="thumbnail"
-                                type="file"
-                                value={formData.thumbnail}
-                                onChange={handleChange}
-                                error={errors.thumbnail}
-                                required={true}
-                            />
 
                             <FormTextarea
                                 label="description"
@@ -319,8 +381,50 @@ export default function FormProduct({ product }) {
                                 id="description"
                                 name="description"
                                 error={errors.description}
+                                className="lg:col-span-2"
                             />
                         </div>
+
+                        <div className="grid grid-cols-2 gap-x-4 items-center">
+                            <FormGroup
+                                label={
+                                    product
+                                        ? "change thumbnail"
+                                        : "add thumbnail"
+                                }
+                                name="thumbnail_input"
+                                type="file"
+                                onChange={handleFileChange}
+                                error={errors.thumbnail_input}
+                                required={true}
+                            />
+
+                            <div className="avatar max-w-fit shadow-lg">
+                                <div className="mask mask-squircle h-28 w-28">
+                                    {isVisible && !preview ? (
+                                        <>
+                                            <img
+                                                src={product.thumbnail}
+                                                alt=""
+                                            />
+                                        </>
+                                    ) : preview ? (
+                                        <>
+                                            <img src={preview} alt="Preview" />
+                                        </>
+                                    ) : (
+                                        <>
+                                            <img
+                                                src="/img-not-available.png"
+                                                alt=""
+                                            />
+                                        </>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="divider"></div>
 
                         <div className="flex justify-between w-full">
                             <button
