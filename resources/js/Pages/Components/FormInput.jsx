@@ -7,6 +7,7 @@ export default function ({
     error = "",
     required = false,
     placeholder = "",
+    accept = "",
 }) {
     return (
         <label className="form-control w-full max-w-full">
@@ -24,6 +25,7 @@ export default function ({
                 value={value}
                 onChange={onChange}
                 className="input input-bordered input-sm w-full"
+                accept={accept}
             />
             <div className="label">
                 {/* Error Message */}

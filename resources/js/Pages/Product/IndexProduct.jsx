@@ -4,12 +4,13 @@ import { useState, useEffect } from "react";
 import Swal from "sweetalert2";
 
 export default function IndexProduct({ products }) {
-
     const [loading, setLoading] = useState(true); // State untuk loading
     const [error, setError] = useState(null); // State untuk menangani error
     const [data, setValues] = useState({
         search: "",
     });
+
+    const [isDisalbed, setDisabled] = useState(false);
 
     function handleChange(e) {
         const key = e.target.id;
@@ -22,10 +23,35 @@ export default function IndexProduct({ products }) {
 
     function handleSearch(e) {
         e.preventDefault();
-        router.get("/products", data, { preserveState: true, preserveScroll: true });
+        router.get("/products", data, {
+            preserveState: true,
+            preserveScroll: true,
+        });
     }
 
-    useEffect(() => {}, []); // Jalankan sekali saat komponen dirender
+    const PlaceholderImage = "/img-not-available.png";
+    const [validImages, setValidImages] = useState({});
+
+    const checkImageExists = (url, callback) => {
+        const img = new Image();
+        img.onload = () => callback(true);
+        img.onerror = () => callback(false);
+        img.src = url;
+    };
+
+    useEffect(() => {
+        const imageChecks = {};
+        products.forEach((item) => {
+            checkImageExists(item.thumbnail, (exists) => {
+                imageChecks[item._id] = exists
+                    ? item.thumbnail
+                    : PlaceholderImage;
+                if (Object.keys(imageChecks).length === products.length) {
+                    setValidImages(imageChecks);
+                }
+            });
+        });
+    }, [products]); // Jalankan sekali saat komponen dirender
 
     const Toast = Swal.mixin({
         toast: true,
@@ -51,7 +77,9 @@ export default function IndexProduct({ products }) {
         }).then((result) => {
             if (result.isConfirmed) {
                 router.delete("/products/" + id, {
+                    // preserveScroll: true,
                     onSuccess: (page) => {
+                        setDisabled(false);
                         Toast.fire({
                             icon: "success",
                             // title: "Deleted!",
@@ -64,10 +92,25 @@ export default function IndexProduct({ products }) {
                             icon: "error",
                         });
                     },
+                    onProgress: (progress) => {
+                        console.log("jalan");
+                    },
+                    onStart: (visit) => {
+                        setDisabled(true);
+                        console.log("jalan");
+                    },
                 });
             }
         });
     }
+
+    const formatRupiah = (value) => {
+        return new Intl.NumberFormat("id-ID", {
+            style: "currency",
+            currency: "IDR",
+            minimumFractionDigits: 0,
+        }).format(parseFloat(value));
+    };
 
     return (
         <>
@@ -82,7 +125,9 @@ export default function IndexProduct({ products }) {
                             Add Product
                         </Link>
                     </div>
-                    
+
+                    <div className="divider"></div>
+
                     <div className="join min-w-full my-2">
                         <div className="w-full">
                             <div className="w-full">
@@ -97,7 +142,12 @@ export default function IndexProduct({ products }) {
                         </div>
                         <div className="indicator">
                             <form action="" onSubmit={handleSearch}>
-                                <button type="submit" className="btn btn-sm join-item">Search</button>
+                                <button
+                                    type="submit"
+                                    className="btn btn-sm join-item"
+                                >
+                                    Search
+                                </button>
                             </form>
                         </div>
                     </div>
@@ -127,7 +177,12 @@ export default function IndexProduct({ products }) {
                                                     <div className="avatar">
                                                         <div className="mask mask-squircle h-12 w-12">
                                                             <img
-                                                                src={ item.thumbnail }
+                                                                src={
+                                                                    validImages[
+                                                                        item._id
+                                                                    ] ||
+                                                                    PlaceholderImage
+                                                                }
                                                                 alt={item.title}
                                                             />
                                                         </div>
@@ -136,31 +191,36 @@ export default function IndexProduct({ products }) {
                                                 <td>{item.title}</td>
                                                 <td>{item.category}</td>
                                                 <td>{item.brand}</td>
-                                                <td>{item.price}</td>
+                                                <td>{ formatRupiah(item.price)}</td>
                                                 <td>{item.stock}</td>
                                                 <th>
-                                                    <Link
-                                                        href={
-                                                            "/products/" +
-                                                            item._id +
-                                                            "/edit"
-                                                        }
-                                                        className="btn btn-primary btn-sm"
-                                                    >
-                                                        Edit
-                                                    </Link>
+                                                    <div className="flex space-x-1">
+                                                        <Link
+                                                            href={
+                                                                "/products/" +
+                                                                item._id +
+                                                                "/edit"
+                                                            }
+                                                            className="btn btn-primary btn-sm"
+                                                        >
+                                                            Edit
+                                                        </Link>
 
-                                                    <button
-                                                        type="button"
-                                                        className="btn btn-error btn-sm"
-                                                        onClick={() =>
-                                                            deleteConfirm(
-                                                                item._id
-                                                            )
-                                                        }
-                                                    >
-                                                        Delete
-                                                    </button>
+                                                        <button
+                                                            type="button"
+                                                            className="btn btn-error btn-sm"
+                                                            disabled={
+                                                                isDisalbed
+                                                            }
+                                                            onClick={() =>
+                                                                deleteConfirm(
+                                                                    item._id
+                                                                )
+                                                            }
+                                                        >
+                                                            Delete
+                                                        </button>
+                                                    </div>
                                                 </th>
                                             </tr>
                                         </>
@@ -168,7 +228,7 @@ export default function IndexProduct({ products }) {
                                 </tbody>
                                 <tfoot>
                                     <tr>
-                                        <th>Total : {products.total} Item</th>
+                                        <th>Total : {products.length } Item</th>
                                     </tr>
                                 </tfoot>
                             </table>

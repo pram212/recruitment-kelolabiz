@@ -27,7 +27,7 @@ export default function FormProduct({ product }) {
         // Jika bukan string atau objek, kembalikan data apa adanya
         return data;
     };
-    
+
     const [formData, setFormData] = useState({
         title: product?.title,
         description: product?.description,
@@ -235,7 +235,7 @@ export default function FormProduct({ product }) {
                             />
 
                             <FormGroup
-                                label="discountPercentage"
+                                label="discount (%)"
                                 name="discountPercentage"
                                 type="number"
                                 value={formData.discountPercentage}
@@ -305,7 +305,7 @@ export default function FormProduct({ product }) {
                                 placeholder="Enter product returnPolicy"
                             />
                             <FormGroup
-                                label="minimumOrderQuantity"
+                                label="minimum order quantity"
                                 name="minimumOrderQuantity"
                                 type="text"
                                 value={formData.minimumOrderQuantity}
@@ -394,6 +394,7 @@ export default function FormProduct({ product }) {
                                 }
                                 name="thumbnail_input"
                                 type="file"
+                                accept=".png, .jpg, .jpeg"
                                 onChange={handleFileChange}
                                 error={errors.thumbnail_input}
                                 required={true}
